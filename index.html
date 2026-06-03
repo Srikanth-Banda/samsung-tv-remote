@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>TV Remote</title>
+
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon.svg">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<meta name="theme-color" content="#000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Remote">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #000;
+    --pad: #1a1a1a;
+    --pad-active: #2a2a2a;
+    --surface: #161616;
+    --surface-active: #242424;
+    --border: #232323;
+    --text: #f0f0f0;
+    --muted: #6a6a6a;
+    --power: #ff453a;
+    --green: #30d158;
+    --yellow: #ffd60a;
+    --red: #ff453a;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    padding: max(8px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom));
+    gap: 12px;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ------------ Header ------------ */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 36px;
+    flex-shrink: 0;
+  }
+  .status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .dot.connecting { background: var(--yellow); animation: pulse 1s infinite; }
+  .dot.connected  { background: var(--green); }
+  .dot.standby    { background: var(--yellow); }
+  .dot.error      { background: var(--red); }
+  @keyframes pulse { 0%,100% { opacity:1 } 50% { opacity:0.3 } }
+
+  .power-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: #1a0a0a;
+    border: 1px solid #3a1515;
+    color: var(--power);
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    touch-action: manipulation;
+    transition: background 0.1s, transform 0.07s, filter 0.1s;
+  }
+  .power-btn:active { background: #2a1010; transform: scale(0.92); filter: brightness(1.2); }
+
+  /* ------------ Swipe pad ------------ */
+  .pad {
+    flex: 1;
+    min-height: 220px;
+    background: var(--pad);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: none;
+    cursor: pointer;
+    overflow: hidden;
+    transition: background 0.12s;
+  }
+  .pad.tapping { background: var(--pad-active); }
+
+  .pad-hint {
+    color: var(--muted);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.6;
+    pointer-events: none;
+    opacity: 0.45;
+    transition: opacity 0.4s;
+  }
+  .pad-hint.hidden { opacity: 0; }
+  .pad-hint .center {
+    display: inline-block;
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 1.5px solid currentColor;
+    line-height: 56px;
+    font-size: 13px;
+    margin: 6px 0;
+  }
+
+  /* Direction flash overlay */
+  .pad-flash {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 0;
+    color: #fff;
+  }
+  .pad-flash.show { animation: flash 0.32s ease-out; }
+  .pad-flash svg { width: 80px; height: 80px; opacity: 0.85; }
+  @keyframes flash {
+    0%   { opacity: 0; transform: scale(0.6); }
+    30%  { opacity: 0.9; transform: scale(1); }
+    100% { opacity: 0; transform: scale(1.15); }
+  }
+
+  /* Tap ripple */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+    animation: ripple 0.5s ease-out forwards;
+  }
+  .ripple.small {
+    background: rgba(255,255,255,0.28);
+  }
+  @keyframes ripple {
+    to { transform: translate(-50%, -50%) scale(8); opacity: 0; }
+  }
+
+  /* ------------ Button rows ------------ */
+  .row {
+    display: grid;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .row-4 { grid-template-columns: repeat(4, 1fr); }
+  .row-3 { grid-template-columns: repeat(3, 1fr); }
+
+  .btn {
+    height: 52px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    color: var(--text);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    touch-action: manipulation;
+    transition: background 0.08s, transform 0.06s, filter 0.1s;
+  }
+  .btn:active { background: var(--surface-active); transform: scale(0.95); filter: brightness(1.15); }
+  .btn svg { width: 22px; height: 22px; pointer-events: none; }
+  .btn .lbl { font-size: 11px; color: var(--muted); margin-left: 6px; font-weight: 600; letter-spacing: 0.04em; pointer-events: none; }
+
+  /* More button */
+  .more-btn {
+    height: 38px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    cursor: pointer;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+  .more-btn:active { color: var(--text); }
+  .more-btn svg { width: 18px; height: 18px; }
+
+  /* ------------ Sheet (drawer) ------------ */
+  .backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+    z-index: 10;
+  }
+  .backdrop.open { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #0d0d0d;
+    border-top-left-radius: 24px;
+    border-top-right-radius: 24px;
+    border-top: 1px solid var(--border);
+    padding: 14px 16px max(20px, env(safe-area-inset-bottom));
+    transform: translateY(100%);
+    transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
+    z-index: 11;
+    max-height: 88vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sheet.open { transform: translateY(0); }
+
+  .sheet-handle {
+    width: 36px; height: 4px;
+    background: #333;
+    border-radius: 2px;
+    margin: 4px auto 14px;
+  }
+  .sheet-title {
+    font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.1em;
+    font-weight: 600; margin-bottom: 8px;
+  }
+  .sheet-section { margin-bottom: 18px; }
+  .sheet-section:last-child { margin-bottom: 0; }
+
+  /* Number pad in sheet */
+  .numpad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .numpad .btn { height: 56px; font-size: 20px; font-weight: 500; border-radius: 16px; }
+
+  /* Color keys slim bars */
+  .colors { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 4px 0; }
+  .cbar {
+    height: 28px;
+    border-radius: 14px;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.08s, filter 0.12s;
+  }
+  .cbar:active { transform: scaleY(0.7); filter: brightness(1.3); }
+  .c-red    { background: #c0392b; }
+  .c-green  { background: #27ae60; }
+  .c-yellow { background: #d4a017; }
+  .c-blue   { background: #2980b9; }
+
+  /* ------------ App buttons (branded) ------------ */
+  .apps-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+  .apps-grid + .apps-grid { margin-top: 8px; }
+  .app-btn {
+    position: relative;
+    height: 52px;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    touch-action: manipulation;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    padding: 0;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif;
+    transition: transform 0.06s, filter 0.1s;
+  }
+  .app-btn:active { transform: scale(0.95); filter: brightness(1.2); }
+
+  /* Netflix — black with red N */
+  .app-netflix { background: #000; box-shadow: inset 0 0 0 1px #1f1f1f; }
+  .app-netflix .mark {
+    color: #E50914;
+    font-weight: 900;
+    font-style: italic;
+    font-size: 30px;
+    line-height: 1;
+    letter-spacing: -0.04em;
+    text-shadow: 0 1px 6px rgba(229,9,20,0.45);
+  }
+
+  /* YouTube — white with red play */
+  .app-youtube { background: #fff; }
+  .app-youtube svg { width: 34px; height: 24px; }
+
+  /* Prime Video — light blue with prime video wordmark */
+  .app-prime { background: #1399FF; }
+  .app-prime .mark { font-size: 13px; font-weight: 700; letter-spacing: 0.01em; }
+  .app-prime .mark em { font-style: italic; font-weight: 400; opacity: 0.95; margin-left: 3px; }
+
+  /* Disney+ — dark blue with cursive Disney + */
+  .app-disney { background: linear-gradient(180deg, #0d1a4e, #061333); }
+  .app-disney .mark {
+    font-family: "Snell Roundhand", "Apple Chancery", "Brush Script MT", cursive;
+    font-weight: 700;
+    font-size: 19px;
+    letter-spacing: 0.01em;
+  }
+  .app-disney .mark sup { font-size: 13px; margin-left: 1px; vertical-align: super; font-family: -apple-system, BlinkMacSystemFont, sans-serif; font-weight: 600; }
+
+  /* Apple TV+ — black with white tv+ */
+  .app-appletv { background: #000; box-shadow: inset 0 0 0 1px #222; display: flex; align-items: center; justify-content: center; gap: 3px; }
+  .app-appletv svg { width: 14px; height: 14px; }
+  .app-appletv .mark { font-weight: 600; font-size: 18px; letter-spacing: -0.05em; }
+  .app-appletv .mark sup { font-size: 11px; vertical-align: super; opacity: 0.9; }
+
+  /* Spotify — green with wordmark */
+  .app-spotify { background: #1DB954; }
+  .app-spotify .mark { font-weight: 800; font-size: 13px; letter-spacing: -0.01em; }
+  .app-spotify svg { width: 18px; height: 18px; margin-right: 4px; }
+
+  /* Max — purple→blue gradient */
+  .app-max { background: linear-gradient(135deg, #002BE7, #6D2BE7); }
+  .app-max .mark { font-weight: 900; font-size: 19px; letter-spacing: -0.05em; font-style: italic; }
+
+  /* Hulu — black with green italic wordmark */
+  .app-hulu { background: #000; box-shadow: inset 0 0 0 1px #0a1a10; }
+  .app-hulu .mark { color: #1CE783; font-weight: 900; font-size: 18px; letter-spacing: -0.02em; font-style: italic; }
+
+  /* Settings rows */
+  .setting-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 4px;
+    font-size: 14px;
+    color: var(--text);
+  }
+  .setting-row .toggle {
+    position: relative;
+    width: 44px; height: 26px;
+    background: #2a2a2a;
+    border-radius: 13px;
+    cursor: pointer;
+    transition: background 0.2s;
+    appearance: none;
+    -webkit-appearance: none;
+    flex-shrink: 0;
+  }
+  .setting-row .toggle::before {
+    content: "";
+    position: absolute;
+    width: 22px; height: 22px;
+    background: #888;
+    border-radius: 50%;
+    top: 2px; left: 2px;
+    transition: transform 0.2s, background 0.2s;
+  }
+  .setting-row .toggle:checked { background: var(--green); }
+  .setting-row .toggle:checked::before { transform: translateX(18px); background: #fff; }
+
+</style>
+</head>
+<body>
+
+<!-- icon defs -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-power" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M7 7a7.5 7.5 0 1 0 10 0"/><path d="M12 4v8"/>
+    </symbol>
+    <symbol id="i-mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l4 4V4z"/><path d="M22 9l-6 6M16 9l6 6"/>
+    </symbol>
+    <symbol id="i-source" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 17h12M6 14l-3 3l3 3M21 7H9M18 4l3 3l-3 3"/>
+    </symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 14l-4-4l4-4"/><path d="M5 10h11a4 4 0 1 1 0 8h-1"/>
+    </symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12l9-9l9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10"/><path d="M10 21v-6h4v6"/>
+    </symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 7h16M4 12h16M4 17h16"/>
+    </symbol>
+    <symbol id="i-skip-back" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M20 5v14l-12-7z"/><path d="M5 5v14" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M7 5v14l13-7z"/>
+    </symbol>
+    <symbol id="i-skip-fwd" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
+      <path d="M4 5v14l12-7z"/><path d="M19 5v14" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-vol-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l4 4V4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19 4v6M22 7h-6"/>
+    </symbol>
+    <symbol id="i-vol-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l4 4V4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M22 7h-6"/>
+    </symbol>
+    <symbol id="i-ch-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 15l6-6l6 6"/>
+    </symbol>
+    <symbol id="i-ch-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M6 9l6 6l6-6"/>
+    </symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>
+    </symbol>
+    <symbol id="i-arrow-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 19V5M5 12l7-7l7 7"/>
+    </symbol>
+    <symbol id="i-arrow-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 5v14M5 12l7 7l7-7"/>
+    </symbol>
+    <symbol id="i-arrow-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 12H5M12 5l-7 7l7 7"/>
+    </symbol>
+    <symbol id="i-arrow-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 12h14M12 5l7 7l-7 7"/>
+    </symbol>
+  </defs>
+</svg>
+
+<!-- Hidden haptic trigger: iOS 17.4+ fires a system haptic when an <input switch> toggles -->
+<label aria-hidden="true" style="position:absolute;opacity:0;pointer-events:none;width:0;height:0;overflow:hidden">
+  <input id="haptic-trigger" type="checkbox" switch>
+</label>
+
+<!-- Header -->
+<div class="header">
+  <div class="status">
+    <div class="dot" id="dot"></div>
+    <span id="status-text">connecting…</span>
+  </div>
+  <button class="power-btn" id="power-btn" aria-label="Power">
+    <svg width="20" height="20"><use href="#i-power"/></svg>
+  </button>
+</div>
+
+<!-- Swipe pad -->
+<div class="pad" id="pad" role="button" aria-label="Navigation pad: swipe to move, tap to select">
+  <div class="pad-hint" id="pad-hint">
+    swipe to navigate<br>
+    <span class="center">OK</span><br>
+    tap to select
+  </div>
+  <div class="pad-flash" id="pad-flash"><svg id="pad-flash-icon"><use href="#i-arrow-up"/></svg></div>
+</div>
+
+<!-- Nav row: Back, Home, Menu, Mute -->
+<div class="row row-4">
+  <button class="btn" data-key="KEY_RETURN" aria-label="Back"><svg><use href="#i-back"/></svg></button>
+  <button class="btn" data-key="KEY_HOME"   aria-label="Home"><svg><use href="#i-home"/></svg></button>
+  <button class="btn" data-key="KEY_MENU"   aria-label="Menu"><svg><use href="#i-menu"/></svg></button>
+  <button class="btn" data-key="KEY_MUTE"   aria-label="Mute"><svg><use href="#i-mute"/></svg></button>
+</div>
+
+<!-- Playback row -->
+<div class="row row-3">
+  <button class="btn" data-key="KEY_REWIND" aria-label="Rewind"><svg><use href="#i-skip-back"/></svg></button>
+  <button class="btn" data-key="KEY_PLAY"   aria-label="Play/Pause"><svg><use href="#i-play"/></svg></button>
+  <button class="btn" data-key="KEY_FF"     aria-label="Forward"><svg><use href="#i-skip-fwd"/></svg></button>
+</div>
+
+<!-- Vol/Ch row -->
+<div class="row row-4">
+  <button class="btn" data-key="KEY_VOLDOWN" data-repeat aria-label="Volume down"><svg><use href="#i-vol-down"/></svg></button>
+  <button class="btn" data-key="KEY_VOLUP"   data-repeat aria-label="Volume up"><svg><use href="#i-vol-up"/></svg></button>
+  <button class="btn" data-key="KEY_CHDOWN"  data-repeat aria-label="Channel down"><svg><use href="#i-ch-down"/></svg><span class="lbl">CH</span></button>
+  <button class="btn" data-key="KEY_CHUP"    data-repeat aria-label="Channel up"><svg><use href="#i-ch-up"/></svg><span class="lbl">CH</span></button>
+</div>
+
+<!-- More button -->
+<button class="more-btn" id="more-btn">
+  <svg><use href="#i-dots"/></svg> More
+</button>
+
+<!-- Backdrop + sheet -->
+<div class="backdrop" id="backdrop"></div>
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+
+  <div class="sheet-section">
+    <div class="sheet-title">Numbers</div>
+    <div class="numpad">
+      <button class="btn" data-key="KEY_1">1</button>
+      <button class="btn" data-key="KEY_2">2</button>
+      <button class="btn" data-key="KEY_3">3</button>
+      <button class="btn" data-key="KEY_4">4</button>
+      <button class="btn" data-key="KEY_5">5</button>
+      <button class="btn" data-key="KEY_6">6</button>
+      <button class="btn" data-key="KEY_7">7</button>
+      <button class="btn" data-key="KEY_8">8</button>
+      <button class="btn" data-key="KEY_9">9</button>
+      <button class="btn" data-key="KEY_MINUS">—</button>
+      <button class="btn" data-key="KEY_0">0</button>
+      <button class="btn" data-key="KEY_PRECH" style="font-size:12px">Prev</button>
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-title">Color keys</div>
+    <div class="colors">
+      <button class="cbar c-red"    data-key="KEY_RED"    aria-label="Red"></button>
+      <button class="cbar c-green"  data-key="KEY_GREEN"  aria-label="Green"></button>
+      <button class="cbar c-yellow" data-key="KEY_YELLOW" aria-label="Yellow"></button>
+      <button class="cbar c-blue"   data-key="KEY_BLUE"   aria-label="Blue"></button>
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-title">Other</div>
+    <div class="row row-4">
+      <button class="btn" data-key="KEY_SOURCE" style="font-size:11px">Source</button>
+      <button class="btn" data-key="KEY_GUIDE"  style="font-size:11px">Guide</button>
+      <button class="btn" data-key="KEY_INFO"   style="font-size:11px">Info</button>
+      <button class="btn" data-key="KEY_TOOLS"  style="font-size:11px">Tools</button>
+    </div>
+    <div class="row row-4" style="margin-top:8px">
+      <button class="btn" data-key="KEY_SLEEP"  style="font-size:11px">Sleep</button>
+      <button class="btn" data-key="KEY_ASPECT" style="font-size:11px">Ratio</button>
+      <button class="btn" data-key="KEY_CAPTION" style="font-size:11px">CC</button>
+      <button class="btn" data-key="KEY_EXIT"   style="font-size:11px">Exit</button>
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-title">Apps</div>
+    <div class="apps-grid">
+      <button class="app-btn app-netflix" data-app="3201907018807" aria-label="Netflix">
+        <span class="mark">N</span>
+      </button>
+      <button class="app-btn app-youtube" data-app="111299001912" aria-label="YouTube">
+        <svg viewBox="0 0 34 24" aria-hidden="true">
+          <rect x="0" y="2" width="34" height="20" rx="5" fill="#FF0000"/>
+          <polygon points="14,8 14,18 22,13" fill="#fff"/>
+        </svg>
+      </button>
+      <button class="app-btn app-prime" data-app="3201910019365" aria-label="Prime Video">
+        <span class="mark">prime<em>video</em></span>
+      </button>
+      <button class="app-btn app-disney" data-app="3201901017640" aria-label="Disney Plus">
+        <span class="mark">Disney<sup>+</sup></span>
+      </button>
+      <button class="app-btn app-appletv" data-app="3201807016597" aria-label="Apple TV Plus">
+        <svg viewBox="0 0 16 16" aria-hidden="true" fill="#fff">
+          <path d="M11.6 8.5c0-1.8 1.5-2.7 1.5-2.7-0.8-1.2-2.1-1.4-2.5-1.4-1.1-0.1-2.1 0.6-2.6 0.6-0.5 0-1.4-0.6-2.3-0.6-1.2 0-2.3 0.7-2.9 1.8-1.2 2.2-0.3 5.4 0.9 7.2 0.6 0.9 1.3 1.8 2.2 1.8 0.9 0 1.2-0.6 2.3-0.6 1 0 1.4 0.6 2.3 0.5 1 0 1.6-0.9 2.2-1.8 0.7-1 0.9-2 1-2-0.1 0-2.1-0.8-2.1-2.8z M9.7 3.2c0.5-0.6 0.8-1.4 0.7-2.2-0.7 0-1.5 0.5-2 1-0.4 0.5-0.8 1.3-0.7 2 0.8 0.1 1.6-0.3 2-0.8z"/>
+        </svg>
+        <span class="mark">tv<sup>+</sup></span>
+      </button>
+      <button class="app-btn app-spotify" data-app="3201606009684" aria-label="Spotify">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="#fff">
+          <circle cx="12" cy="12" r="11" fill="#000"/>
+          <path d="M17.2 16.8c-0.2 0.3-0.6 0.4-0.9 0.2-2.4-1.5-5.5-1.8-9.1-1-0.4 0.1-0.7-0.1-0.8-0.5-0.1-0.4 0.1-0.7 0.5-0.8 3.9-0.9 7.4-0.5 10.1 1.1 0.3 0.2 0.4 0.6 0.2 1z M18.5 14c-0.2 0.4-0.7 0.5-1.1 0.3-2.7-1.7-6.9-2.2-10.1-1.2-0.4 0.1-0.9-0.1-1-0.5-0.1-0.4 0.1-0.9 0.5-1 3.7-1.1 8.3-0.6 11.4 1.3 0.4 0.2 0.5 0.7 0.3 1.1z M18.6 11.1c-3.3-1.9-8.6-2.1-11.7-1.2-0.5 0.2-1.1-0.1-1.2-0.6-0.2-0.5 0.1-1.1 0.6-1.2 3.6-1.1 9.5-0.9 13.2 1.4 0.5 0.3 0.6 0.9 0.4 1.4-0.3 0.4-0.9 0.6-1.3 0.2z"/>
+        </svg>
+        <span class="mark">Spotify</span>
+      </button>
+      <button class="app-btn app-max" data-app="3201601007625" aria-label="Max">
+        <span class="mark">max</span>
+      </button>
+      <button class="app-btn app-hulu" data-app="3201506003486" aria-label="Hulu">
+        <span class="mark">hulu</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="sheet-section">
+    <div class="sheet-title">Settings</div>
+    <label class="setting-row">
+      <span>Click sound</span>
+      <input type="checkbox" class="toggle" id="click-toggle">
+    </label>
+  </div>
+</div>
+
+<script>
+  const dot = document.getElementById("dot");
+  const statusText = document.getElementById("status-text");
+  const pad = document.getElementById("pad");
+  const padHint = document.getElementById("pad-hint");
+  const padFlash = document.getElementById("pad-flash");
+  const padFlashIcon = document.getElementById("pad-flash-icon");
+  const sheet = document.getElementById("sheet");
+  const backdrop = document.getElementById("backdrop");
+  const clickToggle = document.getElementById("click-toggle");
+  const powerBtn = document.getElementById("power-btn");
+  const moreBtn = document.getElementById("more-btn");
+
+  let ws = null;
+  let reconnectTimer = null;
+  let reconnectErrorTimer = null;
+  let hintFaded = false;
+  let wsReady = false;
+  let tvPower = "unknown";  // "on" | "off" | "unknown" — pushed from server polling
+  let wakingTimer = null;   // set while waiting for TV to boot after WoL
+
+  function setStatus(state, text) {
+    dot.className = "dot " + state;
+    statusText.textContent = text;
+  }
+
+  function refreshHeader() {
+    if (!wsReady) return;
+    if (wakingTimer) return;  // hold "waking…" until TV reports on
+    if (tvPower === "on")       setStatus("connected", "on");
+    else if (tvPower === "off") setStatus("standby",   "off");
+    else                        setStatus("connected", "connected");
+  }
+
+  function connect() {
+    if (ws) { try { ws.close(); } catch {} ws = null; }
+    clearTimeout(reconnectTimer);
+    clearTimeout(reconnectErrorTimer);
+    reconnectErrorTimer = null;
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(proto + "//" + location.host);
+    ws.onmessage = async (e) => {
+      try {
+        const text = e.data instanceof Blob ? await e.data.text() : e.data;
+        const msg = JSON.parse(text);
+        if (msg.event === "ms.channel.connect") {
+          wsReady = true;
+          refreshHeader();
+        } else if (msg.event === "ms.channel.unauthorized") {
+          setStatus("error", "tap allow on TV");
+        } else if (msg.type === "state") {
+          tvPower = msg.power;
+          if (tvPower === "on" && wakingTimer) {
+            clearTimeout(wakingTimer);
+            wakingTimer = null;
+          }
+          refreshHeader();
+        }
+      } catch {}
+    };
+    ws.onclose = () => {
+      wsReady = false;
+      reconnectErrorTimer = setTimeout(() => { if (!wsReady) setStatus("error", "reconnecting…"); }, 3000);
+      reconnectTimer = setTimeout(connect, 2000);
+    };
+    ws.onerror = () => {};
+  }
+
+  function sendMsg(obj) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    haptic();
+    playTick();
+    ws.send(JSON.stringify(obj));
+  }
+
+  // ---------- Audio click ----------
+  let audioCtx = null;
+  // Default ON — on iOS Safari this is the closest thing to tactile press feedback.
+  let clickEnabled = localStorage.getItem("clickSound") !== "0";
+  clickToggle.checked = clickEnabled;
+  clickToggle.addEventListener("change", () => {
+    clickEnabled = clickToggle.checked;
+    localStorage.setItem("clickSound", clickEnabled ? "1" : "0");
+    if (clickEnabled) ensureAudio();
+  });
+  function ensureAudio() {
+    if (!audioCtx) {
+      try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch { return; }
+    }
+    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  }
+  // Short noise burst through a highpass — sounds like a physical button "tock"
+  // rather than a sine beep. Tuned to be quiet but felt.
+  function playTick() {
+    if (!clickEnabled || !audioCtx) return;
+    const t = audioCtx.currentTime;
+    const len = 256;
+    const buf = audioCtx.createBuffer(1, len, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const env = Math.pow(1 - i / len, 2);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = "highpass"; hp.frequency.value = 900;
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    src.connect(hp).connect(gain).connect(audioCtx.destination);
+    src.start(t);
+    src.stop(t + 0.04);
+  }
+
+  // ---------- Haptic ----------
+  // Android Chrome honours navigator.vibrate. iOS Safari doesn't, but iOS 17.4+
+  // fires a system haptic when a hidden <input type="checkbox" switch> toggles.
+  // Both are best-effort and safe to call from any user-gesture handler.
+  const hapticEl = document.getElementById("haptic-trigger");
+  function haptic() {
+    if (navigator.vibrate) {
+      try { navigator.vibrate(8); } catch {}
+    }
+    if (hapticEl) {
+      try { hapticEl.checked = !hapticEl.checked; hapticEl.dispatchEvent(new Event("change")); } catch {}
+    }
+  }
+
+  // ---------- Send key over WS ----------
+  function sendKey(key) {
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    haptic();
+    playTick();
+    ws.send(JSON.stringify({
+      method: "ms.remote.control",
+      params: { Cmd: "Click", DataOfCmd: key, Option: "false", TypeOfRemote: "SendRemoteKey" }
+    }));
+  }
+
+  // ---------- Ripple feedback ----------
+  function tapRipple(x, y) {
+    const r = pad.getBoundingClientRect();
+    const el = document.createElement("div");
+    el.className = "ripple";
+    el.style.left = (x - r.left) + "px";
+    el.style.top = (y - r.top) + "px";
+    el.style.width = "30px"; el.style.height = "30px";
+    pad.appendChild(el);
+    setTimeout(() => el.remove(), 500);
+  }
+  function buttonRipple(el, x, y) {
+    const r = el.getBoundingClientRect();
+    const ripple = document.createElement("div");
+    ripple.className = "ripple small";
+    ripple.style.left = (x - r.left) + "px";
+    ripple.style.top = (y - r.top) + "px";
+    ripple.style.width = "18px"; ripple.style.height = "18px";
+    el.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 500);
+  }
+
+  // ---------- Bind data-key buttons (pointerdown, optional press-and-hold repeat) ----------
+  const REPEAT_DELAY = 400;
+  const REPEAT_INTERVAL = 100;
+
+  function bindKey(el, key, opts = {}) {
+    let pressed = false;
+    let holdTimeout = null;
+    let repeatInterval = null;
+
+    function stop() {
+      pressed = false;
+      if (holdTimeout) { clearTimeout(holdTimeout); holdTimeout = null; }
+      if (repeatInterval) { clearInterval(repeatInterval); repeatInterval = null; }
+    }
+
+    el.addEventListener("pointerdown", (e) => {
+      if (pressed) return;
+      pressed = true;
+      e.preventDefault();
+      ensureAudio();
+      buttonRipple(el, e.clientX, e.clientY);
+      sendKey(key);
+      if (opts.repeat) {
+        holdTimeout = setTimeout(() => {
+          repeatInterval = setInterval(() => sendKey(key), REPEAT_INTERVAL);
+        }, REPEAT_DELAY);
+      }
+      try { el.setPointerCapture(e.pointerId); } catch {}
+    });
+    el.addEventListener("pointerup", stop);
+    el.addEventListener("pointercancel", stop);
+    el.addEventListener("pointerleave", stop);
+  }
+
+  document.querySelectorAll("[data-key]").forEach((el) => {
+    bindKey(el, el.getAttribute("data-key"), { repeat: el.hasAttribute("data-repeat") });
+  });
+
+  // Smart power button: WoL when TV is off, KEY_POWER when on
+  powerBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    if (wakingTimer) return;  // already waking, ignore extra taps
+    ensureAudio();
+    buttonRipple(powerBtn, e.clientX, e.clientY);
+    if (tvPower === "off") {
+      sendMsg({ type: "wol" });
+      setStatus("connecting", "waking…");
+      // Hold "waking…" until TV comes on; give up after 60s
+      wakingTimer = setTimeout(() => { wakingTimer = null; refreshHeader(); }, 60000);
+    } else {
+      sendKey("KEY_POWER");
+    }
+  });
+
+  // App-launch buttons (sheet)
+  document.querySelectorAll("[data-app]").forEach((el) => {
+    const appId = el.getAttribute("data-app");
+    el.addEventListener("pointerdown", (e) => {
+      if (el._pressed) return;
+      el._pressed = true;
+      e.preventDefault();
+      ensureAudio();
+      buttonRipple(el, e.clientX, e.clientY);
+      sendMsg({ type: "app", appId });
+      setTimeout(() => { el._pressed = false; }, 200);
+    });
+  });
+
+  // More button — opens sheet (no key send)
+  moreBtn.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    ensureAudio();
+    openSheet();
+  });
+  backdrop.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    closeSheet();
+  });
+
+  // -------- Swipe pad gestures (joystick mode: continuous repeat while held) --------
+  const SWIPE_THRESHOLD = 24;
+  const TAP_TIME = 280;
+  const PAD_REPEAT_DELAY = 400;
+  const PAD_REPEAT_INTERVAL = 150;
+
+  let startX = 0, startY = 0, startT = 0;
+  let activePointer = null;
+  let padLockedKey = null;       // direction currently being fired in a repeat
+  let padHoldTimeout = null;
+  let padRepeatInterval = null;
+  let padCommitted = false;      // true once threshold crossed — no longer a tap
+
+  function fadeHint() {
+    if (hintFaded) return;
+    hintFaded = true;
+    padHint.classList.add("hidden");
+  }
+
+  function flashDirection(iconId) {
+    padFlashIcon.firstElementChild.setAttribute("href", "#" + iconId);
+    padFlash.classList.remove("show");
+    void padFlash.offsetWidth;
+    padFlash.classList.add("show");
+  }
+
+  function iconForKey(key) {
+    return key === "KEY_RIGHT" ? "i-arrow-right"
+         : key === "KEY_LEFT"  ? "i-arrow-left"
+         : key === "KEY_DOWN"  ? "i-arrow-down"
+         :                       "i-arrow-up";
+  }
+
+  function fireDirection(key) {
+    flashDirection(iconForKey(key));
+    sendKey(key);
+  }
+
+  function stopPadRepeat() {
+    if (padHoldTimeout) { clearTimeout(padHoldTimeout); padHoldTimeout = null; }
+    if (padRepeatInterval) { clearInterval(padRepeatInterval); padRepeatInterval = null; }
+  }
+
+  function onPointerDown(e) {
+    if (activePointer !== null) return;
+    activePointer = e.pointerId ?? "mouse";
+    const p = e.touches ? e.touches[0] : e;
+    startX = p.clientX; startY = p.clientY; startT = Date.now();
+    pad.classList.add("tapping");
+    fadeHint();
+    ensureAudio();
+    padLockedKey = null;
+    padCommitted = false;
+    stopPadRepeat();
+    try { pad.setPointerCapture && pad.setPointerCapture(e.pointerId); } catch {}
+  }
+
+  function onPointerMove(e) {
+    if (activePointer === null) return;
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - startX;
+    const dy = p.clientY - startY;
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    if (absX < SWIPE_THRESHOLD && absY < SWIPE_THRESHOLD) return;
+
+    padCommitted = true;
+    const key = (absX > absY)
+      ? (dx > 0 ? "KEY_RIGHT" : "KEY_LEFT")
+      : (dy > 0 ? "KEY_DOWN"  : "KEY_UP");
+    if (key === padLockedKey) return;  // already firing this direction
+
+    // Direction change (or initial commit): stop old repeat, fire new key, schedule repeat
+    stopPadRepeat();
+    padLockedKey = key;
+    fireDirection(key);
+    padHoldTimeout = setTimeout(() => {
+      padRepeatInterval = setInterval(() => fireDirection(key), PAD_REPEAT_INTERVAL);
+    }, PAD_REPEAT_DELAY);
+  }
+
+  function onPointerUp(e) {
+    if (activePointer === null) return;
+    activePointer = null;
+    pad.classList.remove("tapping");
+    stopPadRepeat();
+    if (!padCommitted) {
+      const p = (e.changedTouches && e.changedTouches[0]) || e;
+      const dt = Date.now() - startT;
+      if (dt < TAP_TIME) {
+        tapRipple(p.clientX, p.clientY);
+        sendKey("KEY_ENTER");
+      }
+    }
+    padLockedKey = null;
+    padCommitted = false;
+  }
+
+  function onPointerCancel() {
+    activePointer = null;
+    pad.classList.remove("tapping");
+    stopPadRepeat();
+    padLockedKey = null;
+    padCommitted = false;
+  }
+
+  if (window.PointerEvent) {
+    pad.addEventListener("pointerdown", onPointerDown);
+    pad.addEventListener("pointermove", onPointerMove);
+    pad.addEventListener("pointerup", onPointerUp);
+    pad.addEventListener("pointercancel", onPointerCancel);
+  } else {
+    pad.addEventListener("touchstart", onPointerDown, { passive: true });
+    pad.addEventListener("touchmove", onPointerMove, { passive: false });
+    pad.addEventListener("touchend", onPointerUp);
+    pad.addEventListener("touchcancel", onPointerCancel);
+    pad.addEventListener("mousedown", onPointerDown);
+    pad.addEventListener("mousemove", onPointerMove);
+    pad.addEventListener("mouseup", onPointerUp);
+  }
+
+  pad.addEventListener("touchmove", (e) => e.preventDefault(), { passive: false });
+
+  // -------- Sheet (More drawer) --------
+  function openSheet() {
+    sheet.classList.add("open");
+    backdrop.classList.add("open");
+  }
+  function closeSheet() {
+    sheet.classList.remove("open");
+    backdrop.classList.remove("open");
+  }
+  let sheetDragStartY = null;
+  sheet.addEventListener("touchstart", (e) => {
+    if (sheet.scrollTop <= 0) sheetDragStartY = e.touches[0].clientY;
+  }, { passive: true });
+  sheet.addEventListener("touchend", (e) => {
+    if (sheetDragStartY === null) return;
+    const dy = e.changedTouches[0].clientY - sheetDragStartY;
+    if (dy > 60) closeSheet();
+    sheetDragStartY = null;
+  });
+
+  // Reconnect when the phone wakes
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && (!ws || ws.readyState !== WebSocket.OPEN)) connect();
+  });
+
+  connect();
+</script>
+</body>
+</html>
