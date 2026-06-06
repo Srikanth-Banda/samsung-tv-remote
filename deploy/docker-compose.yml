@@ -1,0 +1,12 @@
+services:
+  tv-remote:
+    image: ghcr.io/srikanth-banda/samsung-tv-remote:latest
+    network_mode: host
+    environment:
+      DATA_DIR: /data
+    volumes:
+      - tv-state:/data
+    restart: unless-stopped
+
+volumes:
+  tv-state:

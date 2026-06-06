@@ -9,8 +9,9 @@ const TV_PORT = 8002;
 const TV_PATH = "/api/v2/channels/samsung.remote.control";
 const TV_HTTP_PORT = 8001;
 const PORT = 8080;
-const TOKEN_FILE = path.join(__dirname, ".tv-token");
-const MAC_FILE = path.join(__dirname, ".tv-mac");
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+const TOKEN_FILE = path.join(DATA_DIR, ".tv-token");
+const MAC_FILE = path.join(DATA_DIR, ".tv-mac");
 const ROOT = __dirname;
 const POLL_MS = 5000;
 

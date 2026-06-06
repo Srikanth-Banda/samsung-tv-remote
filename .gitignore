@@ -1,4 +1,7 @@
 node_modules/
+.env
 .tv-token
 .tv-mac
 tvremote.log
+*.log
+.DS_Store
