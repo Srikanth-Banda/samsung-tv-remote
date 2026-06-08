@@ -178,6 +178,10 @@
   }
   .row-4 { grid-template-columns: repeat(4, 1fr); }
   .row-3 { grid-template-columns: repeat(3, 1fr); }
+  .row-2 { grid-template-columns: repeat(2, 1fr); }
+
+  .nav-btn { height: 68px; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+  .nav-btn svg { width: 24px; height: 24px; }
 
   .btn {
     height: 52px;
@@ -430,11 +434,11 @@
     <symbol id="i-skip-fwd" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
       <path d="M4 5v14l12-7z"/><path d="M19 5v14" stroke-linecap="round"/>
     </symbol>
-    <symbol id="i-vol-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l4 4V4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19 4v6M22 7h-6"/>
+    <symbol id="i-vol-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <path d="M12 5v14M5 12h14"/>
     </symbol>
-    <symbol id="i-vol-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M9 8H5a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h4l4 4V4z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M22 7h-6"/>
+    <symbol id="i-vol-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+      <path d="M5 12h14"/>
     </symbol>
     <symbol id="i-ch-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M6 15l6-6l6 6"/>
@@ -486,14 +490,6 @@
   <div class="pad-flash" id="pad-flash"><svg id="pad-flash-icon"><use href="#i-arrow-up"/></svg></div>
 </div>
 
-<!-- Nav row: Back, Home, Menu, Mute -->
-<div class="row row-4">
-  <button class="btn" data-key="KEY_RETURN" aria-label="Back"><svg><use href="#i-back"/></svg></button>
-  <button class="btn" data-key="KEY_HOME"   aria-label="Home"><svg><use href="#i-home"/></svg></button>
-  <button class="btn" data-key="KEY_MENU"   aria-label="Menu"><svg><use href="#i-menu"/></svg></button>
-  <button class="btn" data-key="KEY_MUTE"   aria-label="Mute"><svg><use href="#i-mute"/></svg></button>
-</div>
-
 <!-- Playback row -->
 <div class="row row-3">
   <button class="btn" data-key="KEY_REWIND" aria-label="Rewind"><svg><use href="#i-skip-back"/></svg></button>
@@ -501,12 +497,21 @@
   <button class="btn" data-key="KEY_FF"     aria-label="Forward"><svg><use href="#i-skip-fwd"/></svg></button>
 </div>
 
-<!-- Vol/Ch row -->
-<div class="row row-4">
+<!-- Vol / Mute row -->
+<div class="row row-3">
   <button class="btn" data-key="KEY_VOLDOWN" data-repeat aria-label="Volume down"><svg><use href="#i-vol-down"/></svg></button>
+  <button class="btn" data-key="KEY_MUTE"   aria-label="Mute"><svg><use href="#i-mute"/></svg></button>
   <button class="btn" data-key="KEY_VOLUP"   data-repeat aria-label="Volume up"><svg><use href="#i-vol-up"/></svg></button>
-  <button class="btn" data-key="KEY_CHDOWN"  data-repeat aria-label="Channel down"><svg><use href="#i-ch-down"/></svg><span class="lbl">CH</span></button>
-  <button class="btn" data-key="KEY_CHUP"    data-repeat aria-label="Channel up"><svg><use href="#i-ch-up"/></svg><span class="lbl">CH</span></button>
+</div>
+
+<!-- Back + Home -->
+<div class="row row-2">
+  <button class="btn nav-btn" data-key="KEY_RETURN" aria-label="Back">
+    <svg><use href="#i-back"/></svg><span>Back</span>
+  </button>
+  <button class="btn nav-btn" data-key="KEY_HOME" aria-label="Home">
+    <svg><use href="#i-home"/></svg><span>Home</span>
+  </button>
 </div>
 
 <!-- More button -->
@@ -550,13 +555,18 @@
   <div class="sheet-section">
     <div class="sheet-title">Other</div>
     <div class="row row-4">
+      <button class="btn" data-key="KEY_MENU"   style="font-size:11px">Menu</button>
+      <button class="btn" data-key="KEY_CHDOWN" data-repeat style="font-size:11px"><svg><use href="#i-ch-down"/></svg><span class="lbl">CH</span></button>
+      <button class="btn" data-key="KEY_CHUP"   data-repeat style="font-size:11px"><svg><use href="#i-ch-up"/></svg><span class="lbl">CH</span></button>
       <button class="btn" data-key="KEY_SOURCE" style="font-size:11px">Source</button>
+    </div>
+    <div class="row row-4" style="margin-top:8px">
       <button class="btn" data-key="KEY_GUIDE"  style="font-size:11px">Guide</button>
       <button class="btn" data-key="KEY_INFO"   style="font-size:11px">Info</button>
       <button class="btn" data-key="KEY_TOOLS"  style="font-size:11px">Tools</button>
+      <button class="btn" data-key="KEY_SLEEP"  style="font-size:11px">Sleep</button>
     </div>
     <div class="row row-4" style="margin-top:8px">
-      <button class="btn" data-key="KEY_SLEEP"  style="font-size:11px">Sleep</button>
       <button class="btn" data-key="KEY_ASPECT" style="font-size:11px">Ratio</button>
       <button class="btn" data-key="KEY_CAPTION" style="font-size:11px">CC</button>
       <button class="btn" data-key="KEY_EXIT"   style="font-size:11px">Exit</button>
